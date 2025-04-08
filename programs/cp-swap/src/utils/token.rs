@@ -128,6 +128,7 @@ pub fn token_burn<'a>(
 }
 
 /// Calculate the fee for output amount
+/// 计算转账手续费
 pub fn get_transfer_inverse_fee(mint_info: &AccountInfo, post_fee_amount: u64) -> Result<u64> {
     if *mint_info.owner == Token::id() {
         return Ok(0);

@@ -92,13 +92,16 @@ pub fn deposit(
 ) -> Result<()> {
     let pool_id = ctx.accounts.pool_state.key();
     let pool_state = &mut ctx.accounts.pool_state.load_mut()?;
+    // 1. 校验池子是否允许存入
     if !pool_state.get_status_by_bit(PoolStatusBitIndex::Deposit) {
         return err!(ErrorCode::NotApproved);
     }
+    // 计算所需 Token0 和 Token1 数量
     let (total_token_0_amount, total_token_1_amount) = pool_state.vault_amount_without_fee(
         ctx.accounts.token_0_vault.amount,
         ctx.accounts.token_1_vault.amount,
     );
+    // 计算手续费后用户需要实际支付的 Token 数量
     let results = CurveCalculator::lp_tokens_to_trading_tokens(
         u128::from(lp_token_amount),
         u128::from(pool_state.lp_supply),
@@ -151,7 +154,7 @@ pub fn deposit(
         token_1_transfer_fee: transfer_token_1_fee,
         change_type: 0
     });
-
+    // 滑点检查（Slippage Check）
     if transfer_token_0_amount > maximum_token_0_amount
         || transfer_token_1_amount > maximum_token_1_amount
     {

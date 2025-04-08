@@ -139,10 +139,14 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
     } else {
         return err!(ErrorCode::InvalidVault);
     };
+    // constant k
     let constant_before = u128::from(total_input_token_amount)
         .checked_mul(u128::from(total_output_token_amount))
         .unwrap();
-
+    // 通过 AMM 曲线计算：
+    // - 实际 Swap 的 `source_amount_swapped` 和 `destination_amount_swapped`
+    // - Swap 后新 vault 余额（不含手续费）
+    // - 产生的各种手续费
     let result = CurveCalculator::swap_base_input(
         u128::from(actual_amount_in),
         u128::from(total_input_token_amount),
@@ -174,6 +178,7 @@ pub fn swap_base_input(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u
         u64::try_from(result.source_amount_swapped).unwrap(),
         actual_amount_in
     );
+    //转账费用计算，滑点检查
     let (input_transfer_amount, input_transfer_fee) = (amount_in, transfer_fee);
     let (output_transfer_amount, output_transfer_fee) = {
         let amount_out = u64::try_from(result.destination_amount_swapped).unwrap();

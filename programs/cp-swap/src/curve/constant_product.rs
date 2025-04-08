@@ -49,6 +49,9 @@ impl ConstantProductCurve {
     ///
     /// The constant product implementation is a simple ratio calculation for how
     /// many trading tokens correspond to a certain number of pool tokens
+    /// 	•	💡 本质上是按比例分配流动池中的 token_0 和 token_1。
+	///•	🧾 使用了 checked_* 系列函数，确保安全计算（避免溢出/除以 0）。
+    /// 	///•	📐 支持向上/向下取整逻辑，便于不同场景（如预估 vs 实际交易）的灵活使用。
     pub fn lp_tokens_to_trading_tokens(
         lp_token_amount: u128,
         lp_token_supply: u128,
