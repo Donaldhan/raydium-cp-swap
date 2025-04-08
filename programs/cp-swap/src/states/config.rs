@@ -9,6 +9,7 @@ pub struct AmmConfig {
     /// Bump to identify PDA
     pub bump: u8,
     /// Status to control if new pool can be create
+    /// 是否禁止用户创建新的交易池
     pub disable_create_pool: bool,
     /// Config index
     pub index: u16,
@@ -24,7 +25,8 @@ pub struct AmmConfig {
     pub protocol_owner: Pubkey,
     /// Address of the fund fee owner
     pub fund_owner: Pubkey,
-    /// padding
+    /// padding 
+    /// 结构预留空间用于未来升级
     pub padding: [u64; 16],
 }
 

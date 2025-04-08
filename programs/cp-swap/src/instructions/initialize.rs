@@ -179,6 +179,8 @@ pub fn initialize(
         open_time = block_timestamp + 1;
     }
     // due to stack/heap limitations, we have to create redundant new accounts ourselves.
+    // 创建 Token Vault（池中资产托管账户）
+    // 调用 create_token_account(...) 为 token_0 和 token_1 创建 PDA Vault。
     create_token_account(
         &ctx.accounts.authority.to_account_info(),
         &ctx.accounts.creator.to_account_info(),
@@ -208,7 +210,8 @@ pub fn initialize(
             &[ctx.bumps.token_1_vault][..],
         ],
     )?;
-
+    // 初始化池主状态 pool_state
+    // 调用 create_pool(...) 创建并分配 PoolState 存储空间，写入基础信息。
     let pool_state_loader = create_pool(
         &ctx.accounts.creator.to_account_info(),
         &ctx.accounts.pool_state.to_account_info(),
@@ -222,6 +225,8 @@ pub fn initialize(
     let mut observation_state = ctx.accounts.observation_state.load_init()?;
     observation_state.pool_id = ctx.accounts.pool_state.key();
 
+    //     向 Vault 存入初始 Token
+    // 将 creator_token_0 和 creator_token_1 的资产分别转入池的 vault 中。
     transfer_from_user_to_pool_vault(
         ctx.accounts.creator.to_account_info(),
         ctx.accounts.creator_token_0.to_account_info(),
@@ -260,9 +265,10 @@ pub fn initialize(
                 .deref(),
         )?
         .base;
-
+    // 使用 Curve 校验 token 0 和 token 1 的数量合法性
     CurveCalculator::validate_supply(token_0_vault.amount, token_1_vault.amount)?;
 
+    // 计算初始流动性 + 铸造 LP Token
     let liquidity = U128::from(token_0_vault.amount)
         .checked_mul(token_1_vault.amount.into())
         .unwrap()
@@ -288,7 +294,11 @@ pub fn initialize(
     )?;
 
     // Charge the fee to create a pool
+    // 收取创建池费用（如果有）
     if ctx.accounts.amm_config.create_pool_fee != 0 {
+        // •	从 creator 向 create_pool_fee 转账 create_pool_fee 数量的 SOL。
+        // •	create_pool_fee 是一个 wrapped SOL 类型的 Token Account（即用 SOL 初始化的 SPL Token 账户）。
+        // •	通过 invoke 调用系统程序的转账指令（而非 Anchor 的语法糖）。
         invoke(
             &system_instruction::transfer(
                 ctx.accounts.creator.key,
@@ -301,6 +311,9 @@ pub fn initialize(
                 ctx.accounts.system_program.to_account_info(),
             ],
         )?;
+        // •	当使用原生 SOL 初始化一个 SPL Token 账户（即 wrapped SOL 账户）后，若对该账户直接转入 SOL，必须调用 sync_native。
+        // •	作用是让该 Token Account 更新其 amount 字段，使其反映当前账户的 lamports。
+        // •	否则，token amount 会看起来是“未更新”，后续 mint/burn/transfer 都会失败或出错。
         invoke(
             &spl_token::instruction::sync_native(
                 ctx.accounts.token_program.key,
@@ -312,7 +325,7 @@ pub fn initialize(
             ],
         )?;
     }
-
+    // 初始化 PoolState
     pool_state.initialize(
         ctx.bumps.authority,
         liquidity,
@@ -330,6 +343,17 @@ pub fn initialize(
     Ok(())
 }
 
+// 该函数用于创建 AMM 流动性池账户，其核心流程如下：
+// 	1.	账户合法性校验：
+// 	•	确保传入的 pool_account_info 尚未初始化（仍归属于 System Program）。
+// 	2.	生成并验证池子 PDA 地址：
+// 	•	使用 POOL_SEED + amm_config + token_0_mint + token_1_mint 推导出唯一的 PDA 地址。
+// 	•	如果传入地址不一致，则要求必须是签名者（安全上可进一步加固）。
+// 	3.	创建或分配池账户空间：
+// 	•	调用 create_or_allocate_account 分配空间，设置 owner 为当前程序 ID。
+// 	•	分配长度为 PoolState::LEN，确保兼容 ZeroCopy 读取。
+// 	4.	返回池子状态对象：
+// 	•	使用 AccountLoad::try_from_unchecked 封装 PoolState 的零拷贝读取结构，供后续读写操作。
 pub fn create_pool<'info>(
     payer: &AccountInfo<'info>,
     pool_account_info: &AccountInfo<'info>,

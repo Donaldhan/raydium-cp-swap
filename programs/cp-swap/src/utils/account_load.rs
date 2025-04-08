@@ -9,6 +9,12 @@ use std::marker::PhantomData;
 use std::mem;
 use std::ops::DerefMut;
 
+
+// AccountLoad 是 Anchor 中用来处理 Zero-Copy 账户访问 的工具，它的作用是：
+// 	•	将一个 AccountInfo 封装起来，
+// 	•	并提供一种 高效读取和写入账户数据 的方式（即不进行 Borsh 序列化/反序列化，而是直接使用引用操作数据内存），
+// 	•	同时确保这个账户的 owner 与 T 所代表的程序一致，
+// 	•	并能通过 .load()、.load_mut() 获取对数据的（可变）引用。
 #[derive(Clone)]
 pub struct AccountLoad<'info, T: ZeroCopy + Owner> {
     acc_info: AccountInfo<'info>,
